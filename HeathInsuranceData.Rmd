@@ -1,0 +1,368 @@
+---
+title: "Appendix"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+insurance <- read.csv("~/Downloads/insurance.csv")
+head(insurance)
+summary(insurance)
+```
+
+## EDA: Response Variable
+
+```{r}
+library(ggplot2)
+ggplot(insurance, aes(x=charges)) + geom_histogram(bins = 30)
+```
+**The histogram for the charges variable appears to be right-skewed. The distribution of the data is not symmetric, and the majority of the data points are concentrated on the left hand side. This suggests that most observations are smaller with a few larger observations.**
+
+## EDA: Predictor Variables
+
+```{r}
+library("ggplot2") 
+library("gridExtra")
+ 
+# three plots and store variables
+h1<-ggplot(insurance, aes(x=age)) + geom_histogram(binwidth=1)
+h2<-ggplot(insurance, aes(x=children)) + geom_histogram(binwidth=0.1)
+h3<-ggplot(insurance, aes(x=bmi)) + geom_histogram(binwidth=0.05)
+b1<-ggplot(data=insurance, aes(x=sex))+geom_bar()
+b2<-ggplot(data=insurance, aes(x=region)) + geom_bar()
+b3<-ggplot(data=insurance, aes(x=smoker)) + geom_bar()
+
+grid.arrange(h1, h2,h3,b1,b2,b3, ncol = 3, nrow = 2)
+```
+**We can see that the age histogram follows a uniform distribution with a few exceptions. The histogram for the number of children is right-skewed. BMI appears to have a fairly normal distribution. From the bar graphs, we can tell that both sexes have similar frequencies, and that all regions have similar frequencies. We can also see that the majority of the data consists of non smokers.**
+
+## EDA: Response Vs. Predictors
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+# Scatter plots of response variable with each independent variables
+s1 <- ggplot(insurance, aes(x = age, y = charges)) + geom_point()
+s2 <- ggplot(insurance, aes(x = children, y = charges)) + geom_point()
+s3 <- ggplot(insurance, aes(x = bmi, y = charges)) + geom_point()
+s4 <- ggplot(insurance, aes(x = smoker, y = charges)) + geom_point()
+s5 <- ggplot(insurance, aes(x = region, y = charges)) + geom_point()
+s6 <- ggplot(insurance, aes(x = sex, y = charges)) + geom_point()
+grid.arrange(s1, s2, s3, s4, s5, s6, nrow = 2, ncol = 3)
+```
+
+```{r}
+library("ggplot2") 
+library("gridExtra")
+ 
+#three plots and store variables
+s1<-ggplot(insurance, aes(x=age, y=charges)) + geom_point()
+s2<-ggplot(insurance, aes(x=children, y=charges)) + geom_point()
+s3<-ggplot(insurance, aes(x=bmi, y=charges)) + geom_point()
+
+box1<-ggplot(insurance, aes(x=sex, y=charges)) + 
+  geom_boxplot()
+box2<-ggplot(insurance, aes(x=region, y=charges)) + 
+  geom_boxplot()
+box3<-ggplot(insurance, aes(x=smoker, y=charges)) + 
+  geom_boxplot()
+
+grid.arrange(s1, s2,s3,box1, box2, box3, ncol = 3, nrow = 2)
+```
+**There are three sets of points following separate positive linear patterns in the age vs. charges scatter plot. This suggests that there may be interaction effects between age and another variable. From the BMI vs charges scatter plot, we can see that there is no relation ship between the two variables. The sex vs charges box plot appears to be skewed and suggests that there is a difference in the distribution of females and males. The region vs charges box plot also appears to be skewed with several outliers, and the categories northeast and southeast have a greater variability. From the smoker vs charges box plot, we can easily see that smokers get charged more than non smokers.**
+
+## Multicollinarity analysis
+
+```{r}
+library("GGally")
+ 
+# pairwise scatterplots and coefficients of correlation 
+ggpairs(insurance) + theme()
+```
+
+```{r}
+# charges by smoker status and sex using boxplots
+ggplot(insurance, aes(x = smoker, y = charges, fill = sex)) +
+  geom_boxplot() + ggtitle("Charges based on Smoker Status & Sex") 
+```
+**There is minimal disparity in the mean charges for female and male non-smokers. However, a significant difference is seen when examining smokers, where the mean charge for male smokers is considerably higher than that for female smokers. This suggests a significant gender-based difference in charges among smokers.**
+
+**Multicollinarity: Nonsignificant t-tests for all (or nearly all) independent variables when the overall F-test is significant**
+
+```{r}
+model <- lm(charges~children+age+bmi+sex+region+smoker,data=insurance)
+summary(model)
+```
+**The F-test for H0:β1=β2=β3=0 is highly signification (F=500.8, p-value < 2.23-16). Therefore we can reject H0 for any α greater than 0.0001 and conclude that at least one of the parameters β1,β2,β3, is nonzero. The t-tests for sex and region, however, are nonsignificant.**
+
+**Multicollinarity: Variance Inflation Factor (VIF)**
+
+```{r}
+library(car)
+vif(model)
+```
+**Since all of the VIF values are close to 1, multicollinarity isn't a problem in the model.**
+
+```{r}
+ggplot(insurance, aes(x=age, y=charges)) + geom_point()
+
+data1 <- insurance[!(insurance$age <= 45 & insurance$charges > 10000) & insurance$charges < 18000, ]
+ggplot(data1, aes(x = age, y = charges, color = smoker)) + geom_point() + ylim(c(0, 18000))
+```
+**We noticed that there are three groups of points in the age vs charges scatter plot and decided to treat each group as a separate data set and create a model for each. For now we will be working with the group at the bottom of the set of points, which consists of 966 entries, and later replicate the steps to create models for the other two groups.**
+
+## Model Selection
+```{r}
+insurance$sex[insurance$sex == 'male'] <- 0
+insurance$sex[insurance$sex == 'female'] <- 1
+insurance$smoker[insurance$smoker == 'yes'] <- 0
+insurance$smoker[insurance$smoker == 'no'] <- 1
+insurance$region[insurance$region == 'southwest'] <- 0
+insurance$region[insurance$region == 'southeast'] <- 1
+insurance$region[insurance$region == 'northwest'] <- 2
+insurance$region[insurance$region == 'northeast'] <- 3
+insurance$smoker<-as.numeric(insurance$smoker)
+insurance$sex<-as.numeric(insurance$sex)
+insurance$region<-as.numeric(insurance$region)
+head(insurance)
+```
+
+```{r}
+null_model <- lm(charges ~ 1, data = insurance)
+full_model <- lm(charges ~ ., data = insurance)
+#full_model <- lm(charges ~ (.)ˆ2, data = insurance)
+step_model1 <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "both")
+```
+**Checking for Linearity and Constant Variance Linearity and Constant variance are not satisifed hence showing we need to continue modifying our model.**
+
+```{r}
+library(ggplot2)
+ggplot(data =step_model1, aes(x = .fitted, y = .resid)) +
+geom_point(alpha = 0.5) +
+geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+labs(x = "Predicted values", y = "Residuals")
+```
+**Checking for Normality The normality assumption is not satisfied as can be seen by the graphs and confirmed through the shaprio wilk test.**
+
+```{r}
+ggplot(data =step_model1, aes(x = .resid)) +geom_histogram()
+```
+
+```{r}
+ggplot(data =step_model1, aes(x = .resid)) +geom_boxplot()
+```
+
+```{r}
+qqnorm(resid(step_model1))
+qqline(resid(step_model1))
+```
+**Since 2.2e-16 is less than .05 we reject H0. Hence the normality assumption is not satisfied.**
+
+```{r}
+shapiro.test(resid(step_model1))
+```
+**Checking for Independence Since p value is greater than 0.05 we fail to reject HO. Hence we can say that there is no correlation between the variables.**
+
+```{r}
+library(car)
+dwt(step_model1)
+```
+**When running the model including all the predictors we can see that using stepwise regression.The sex predictor is not a very good predictor for the model since it has a p value of 0.693348. Currently, using this model, normality linearity, and constant variance are not satisfied. Hence for our final model we may want to consider interaction in our model and make necessary transformations so the assumptions can be satisfied. Our research question was if Male or Females pay more insurance charges. However, since we see that sex is not a good predictor we can look into another research question to look into if smokers or non-smokers pay
+more insurance charges depending on the region they are located.**
+
+
+
+
+
+
+
+```{r}
+hist(insurance$charges)
+hist(log(insurance$charges))
+ggplot(insurance, aes(x = age, y = log(charges))) + geom_point() + labs(title = "Age vs Charges")
+ggplot(insurance, aes(x = bmi, y = log(charges))) + geom_point() + labs(title = "BMI vs Charges")
+ggplot(insurance, aes(x = children, y =log(charges))) + geom_point() + labs(title = "Children vs Charges")
+```
+
+```{r}
+lm1 <- lm(log(charges) ~ 0 + age, insurance)
+Y1 <- lm1$resid
+plot(insurance$age,Y1)
+hist(Y1)
+```
+
+```{r}
+plot(insurance$age,Y1)
+plot(insurance$bmi,Y1)
+plot(insurance$children,Y1)
+```
+
+```{r}
+lm2 <- lm(Y1 ~ 0 + children, insurance)
+Y2 <- lm2$residuals
+plot(insurance$children,Y2)
+hist(Y2)
+```
+
+```{r}
+plot(insurance$age,Y2)
+plot(insurance$bmi,Y2)
+plot(insurance$children,Y2)
+```
+
+```{r}
+lm3 <- lm(Y2 ~ 0 + log(bmi), insurance)
+Y3 <- lm3$residuals
+plot(insurance$bmi,Y3)
+hist(Y3)
+```
+
+```{r}
+#interactions
+ggplot(insurance, aes(x = age, y = Y3, color = factor(sex))) +
+  geom_point() +
+  labs(title = "Age and Sex")
+
+ggplot(insurance, aes(x = children, y = Y3, color = factor(sex))) +
+  geom_point() +
+  labs(title = "Children and Sex")
+
+ggplot(insurance, aes(x = bmi, y = Y3, color = factor(sex))) +
+  geom_point() +
+  labs(title = "BMI and Sex")
+
+ggplot(insurance, aes(x = age, y = Y3, color = factor(smoker))) +
+  geom_point() +
+  labs(title = "Age and Smoker")
+
+ggplot(insurance, aes(x = children, y = Y3, color = factor(smoker))) +
+  geom_point() +
+  labs(title = "Children and Smoker")
+
+ggplot(insurance, aes(x = bmi, y = Y3, color = factor(smoker))) +
+  geom_point() +
+  labs(title = "BMI and Smoker")
+
+ggplot(insurance, aes(x = age, y = Y3, color = factor(region))) +
+  geom_point() +
+  labs(title = "Age and Region")
+
+
+ggplot(insurance, aes(x = children, y = Y3, color = factor(region))) +
+  geom_point() +
+  labs(title = "Children and Region")
+
+
+ggplot(insurance, aes(x = bmi, y = Y3, color = factor(region))) +
+  geom_point() +
+  labs(title = "BMI and Region")
+```
+
+```{r}
+lm4 <- lm(Y3 ~ 0 + insurance$bmi:insurance$smoker) 
+Y4 <- lm4$residuals
+plot(insurance$smoker,Y4)
+```
+
+```{r}
+lm5 <- lm(Y4 ~ 1)
+Y5 <- lm5$residuals
+qqnorm(Y5)
+qqline(Y5)
+hist(Y5)
+shapiro.test(Y5)
+```
+
+## Considered but excluded models
+
+```{r}
+null_model <- lm(log(charges) ~ 1, data = insurance)
+
+# Specify the full model using all of the potential predictors
+full_model <- lm(log(charges) ~ 0 + age + children + bmi:smoker, insurance)
+
+# Use a stepwise algorithm to build a parsimonious model
+step_model1 <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "both", test = "F")
+
+summary(step_model1)
+```
+
+```{r}
+qqnorm(step_model1$residuals)
+qqline(step_model1$residuals)
+plot(step_model1$fitted.values, step_model1$residuals)
+shapiro.test(step_model1$residuals)
+summary(step_model1)
+```
+
+```{r}
+model1 <- lm(log(charges) ~ 0 + age + children + bmi + bmi:smoker, data = insurance)
+summary(model1)
+
+model2 <- lm(log(charges) ~ 0 + children + I(age^2) + I(children^2) + smoker + 
+    bmi:smoker + I(bmi^2):smoker, data = insurance)
+summary(model2)
+
+# use stepwise algorithm
+step_model <- lm(formula = log(charges) ~ insurance$age + insurance$children + 
+    insurance$bmi + insurance$bmi:insurance$smoker, data = insurance)
+summary(step_model)
+```
+
+## Final Model/Model Diagnostics
+```{r}
+#final model
+lm6 <- lm(log(charges) ~ 0 + age + children + bmi:smoker, insurance)
+qqnorm(lm6$residuals)
+qqline(lm6$residuals)
+plot(lm6$fitted.values, lm6$residuals)
+shapiro.test(lm6$residuals)
+summary(lm6)
+```
+When trying to find the functional form of all of our predictors in our model we found that one interaction term was needed. This interaction was between bmi and smoker. The reason this interaction term was added to our final model was because of the results we found from the bmi vs charges graph. In this graph we set non-smokers and smokers to their own color. This showed a cluster of non-smokers and smokers. This gave insight that there is an interaction between bmi and smoker.
+
+## Model Transformations
+We tried various different transformations to ensure that the model assumptions were met. We first tried sqrt, log, BOXCOX, cube, and reciprocal on the x values to see if we can find linearity. We ended up not making any transformations to x since it was messing up with the normality. We transformed charges using log to see normality. This was successful so we used log of charges in our final model. Independence was also valid in our model. Constant variance unfortunately was not valid. The transformations to x and y did not help constant variance.
+
+## Multicollinearity analysis - Final Model
+When running VIF we found that the values were all under 10. We removed the BMI factor since it was not outputting a VIF value since the addition of the BMI was causing there me perfect multicollinearity in our model.
+```{r}
+lm6<-lm(log(insurance$charges)~0+insurance$age+insurance$children+(insurance$bmi):insurance$smoker)
+summary(lm6)
+```
+The F-test for H0:β1=β2=β3=0 is highly signification (F=1.465e+04, p-value < 2.23-16). Therefore we can reject H0 for any α greater than 0.0001 and conclude that at least one of the parameters β1,β2,β3, is nonzero.
+
+```{r}
+library(car)
+vif(lm6)
+```
+
+
+**Second order and interaction terms:**
+When trying to find the functional form of all of our predictors in our model we found that one interaction term was needed. This interaction was between bmi and smoker. The reason this interaction term was added to our final model was because of the results we found from the bmi vs charges graph. In this graph we set non-smokers and smokers to their own color. This showed a cluster of non-smokers and smokers. This gave insight that there is an interaction between bmi and smoker.
+
+## Assumptions for final model
+Linearity Assumption: The relationship between the independent variables and the dependent variable is linear. We can check this assumption by plotting the residuals against the fitted values. We tried various different transformations to ensure that the model assumptions were met. We first tried sqrt, log, BOXCOX, cube, and reciprocal on the x values to see if we can find linearity. We ended up not making any transformations to x since it was messing up with the normality.
+
+Constant Variance of Residuals Assumption: The variance of the residuals should be constant across all levels of the independent variables. 
+We can check this assumption by plotting residuals against fitted values. Constant variance unfortunately was not valid. The transformations to x and y did not help constant variance.
+
+Normality of Residuals Assumption: The residuals are normally distributed with mean 0. We can check this assumption by creating a histogram or a quantile-quantile (Q-Q) plot of the residuals. We fixed normality by log-transforming the charges response variable.
+
+Multicollinearity is not present in the predictors since the VIF values are less than 10.
+
+## Model Interpretation
+The positive coefficient for age suggests that, holding other variables constant, a one-unit increase in age is associated with a 0.071486 increase in the logarithm of charges. This aligns with the expectation that older individuals tend to experience higher insurance expenses due to increased health risks and more costly treatments. The positive coefficients for both children and bmi suggest that individuals with more children or higher BMI tend to have higher insurance charges.
+
+The negative coefficient for bmi:smoker ($\beta_{bmi:smoker} = 0.050251$) suggests that the effect of BMI on charges is modified by smoking status. Specifically, for smokers, the relationship between BMI and charges differs compared to non-smokers. While BMI still positively influences charges for smokers, the effect is less obvious
+
+The residuals provide insight into the model's performance, indicating the differences between observed and predicted values. The model overall demonstrates high significance, as indicated by the low p-values for the coefficients.
+
+## Limitations of final model
+After trying different transformation methods, we were not able to fix the negative slope in the residuals vs fitted plot. This indicates that there might be some missing variables or interactions that are the cause of the downward effect in our plot. This shows that the current data we have might be limited. Adding more relevant variables or interaction terms could possibly improve the model's fit and address the downward pattern in the residuals vs. fitted plot. When examining the plots, we can see that we are missing current data which can contribute to the negative pattern that we observe.
+
